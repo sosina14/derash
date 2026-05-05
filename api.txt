@@ -1,0 +1,418 @@
+Emergency Ambulance System Backend API (Django REST)
+
+Base URL
+- http://127.0.0.1:8000/api
+
+Auth Type
+- Token auth
+- Header format for protected endpoints:
+  Authorization: Token <token_here>
+
+Roles
+- PATIENT
+- HOSPITAL
+- ADMIN
+
+Important Backend Rules
+- Routing is sequential only (hospital rank 1 -> 2 -> 3).
+- Exactly one hospital can win a request.
+- Drivers belong to only one hospital.
+- Drivers do not log in.
+- No retry if no driver is available at acceptance time.
+- Emergency type is stored but not used for hospital selection.
+
+================================================================
+1) Authentication APIs
+================================================================
+
+1.1 Register Patient
+- Method: POST
+- Path: /auth/patient/register/
+- Auth: Public
+- Request JSON:
+{
+  "username": "patient1",
+  "password": "patient123",
+  "first_name": "John",
+  "last_name": "Doe",
+  "email": "patient1@example.com"
+}
+- Success Response (201):
+{
+  "id": 3,
+  "username": "patient1",
+  "first_name": "John",
+  "last_name": "Doe",
+  "email": "patient1@example.com"
+}
+
+1.2 Login (Patient/Hospital/Admin)
+- Method: POST
+- Path: /auth/login/
+- Auth: Public
+- Request JSON:
+{
+  "username": "admin",
+  "password": "admin123"
+}
+- Success Response (200):
+{
+  "token": "string_token",
+  "role": "ADMIN",
+  "user_id": 1
+}
+- Error Response (400):
+{
+  "non_field_errors": ["Invalid credentials."]
+}
+
+================================================================
+2) Admin APIs
+================================================================
+
+2.1 Create Hospital
+- Method: POST
+- Path: /admin/hospitals/
+- Auth: ADMIN token required
+- Request JSON:
+{
+  "username": "hospital1",
+  "password": "hospital123",
+  "name": "City Hospital",
+  "latitude": 9.03,
+  "longitude": 38.74,
+  "email": "hospital1@example.com"
+}
+- Success Response (201):
+{
+  "id": 1,
+  "name": "City Hospital"
+}
+- Notes:
+  - Hospital accounts cannot self-register.
+  - Hospital user role is set to HOSPITAL automatically.
+
+================================================================
+3) Hospital APIs
+================================================================
+
+3.1 Create Driver
+- Method: POST
+- Path: /hospital/drivers/
+- Auth: HOSPITAL token required
+- Request JSON:
+{
+  "name": "Driver One",
+  "phone": "+251900000001",
+  "status": "AVAILABLE",
+  "current_latitude": 9.03,
+  "current_longitude": 38.74
+}
+- Success Response (201):
+{
+  "id": 1,
+  "name": "Driver One",
+  "phone": "+251900000001",
+  "status": "AVAILABLE",
+  "current_latitude": 9.03,
+  "current_longitude": 38.74,
+  "hospital": 1
+}
+
+3.2 List Drivers
+- Method: GET
+- Path: /hospital/drivers/
+- Auth: HOSPITAL token required
+- Success Response (200):
+[
+  {
+    "id": 1,
+    "name": "Driver One",
+    "phone": "+251900000001",
+    "status": "AVAILABLE",
+    "current_latitude": 9.03,
+    "current_longitude": 38.74,
+    "hospital": 1
+  }
+]
+
+3.3 Update Driver Location/Status
+- Method: PATCH
+- Path: /hospital/drivers/<driver_id>/location/
+- Auth: HOSPITAL token required
+- Request JSON example:
+{
+  "current_latitude": 9.031,
+  "current_longitude": 38.741
+}
+- Success Response (200):
+{
+  "id": 1,
+  "name": "Driver One",
+  "phone": "+251900000001",
+  "status": "UNAVAILABLE",
+  "current_latitude": 9.031,
+  "current_longitude": 38.741,
+  "hospital": 1
+}
+- Error Response (404):
+{
+  "detail": "Driver not found."
+}
+
+3.4 List Incoming Requests For Current Hospital
+- Method: GET
+- Path: /hospital/requests/incoming/
+- Auth: HOSPITAL token required
+- Returns only requests currently routed to this hospital (active rank).
+- Success Response (200):
+[
+  {
+    "id": 10,
+    "patient": 3,
+    "emergency_type": "ACCIDENT",
+    "patient_latitude": 9.021,
+    "patient_longitude": 38.751,
+    "status": "PENDING",
+    "active_rank": 1,
+    "failure_reason": "",
+    "accepted_hospital": null,
+    "assigned_driver": null,
+    "accepted_hospital_name": "",
+    "candidates": [
+      {
+        "id": 21,
+        "hospital": 1,
+        "hospital_name": "Hosp A",
+        "rank": 1,
+        "decision": "PENDING",
+        "distance_meters": 1576,
+        "responded_at": null
+      },
+      {
+        "id": 22,
+        "hospital": 2,
+        "hospital_name": "Hosp B",
+        "rank": 2,
+        "decision": "PENDING",
+        "distance_meters": 2900,
+        "responded_at": null
+      }
+    ],
+    "created_at": "2026-04-30T14:40:00Z",
+    "updated_at": "2026-04-30T14:40:00Z"
+  }
+]
+
+3.5 Hospital Decision (ACCEPT or REJECT)
+- Method: POST
+- Path: /hospital/requests/<request_id>/decision/
+- Auth: HOSPITAL token required
+
+A) Reject request:
+Request JSON:
+{
+  "decision": "REJECT"
+}
+Behavior:
+- Marks current hospital candidate as REJECTED.
+- Advances to next candidate hospital.
+- If last candidate rejected -> request becomes FAILED.
+
+B) Accept request:
+Request JSON:
+{
+  "decision": "ACCEPT",
+  "driver_id": 1
+}
+Behavior:
+- Driver must be AVAILABLE and from same hospital.
+- On success:
+  - request status -> ASSIGNED
+  - accepted_hospital set
+  - assigned_driver set
+  - driver status -> UNAVAILABLE
+- If driver missing/unavailable at accept time:
+  - request status -> FAILED
+  - failure_reason -> "No driver available at acceptance"
+
+Error responses:
+- 404: {"detail": "Request not found."}
+- 400: {"detail": "Request is not pending."}
+- 400: {"detail": "This request is not currently routed to your hospital."}
+- 400: {"detail": "decision must be ACCEPT or REJECT"}
+
+================================================================
+4) Patient APIs
+================================================================
+
+4.1 Create Emergency Request
+- Method: POST
+- Path: /patient/requests/
+- Auth: PATIENT token required
+- Request JSON:
+{
+  "emergency_type": "ACCIDENT",
+  "patient_latitude": 9.021,
+  "patient_longitude": 38.751
+}
+- Success Response (201) shape:
+{
+  "id": 10,
+  "patient": 3,
+  "emergency_type": "ACCIDENT",
+  "patient_latitude": 9.021,
+  "patient_longitude": 38.751,
+  "status": "PENDING",
+  "active_rank": 1,
+  "failure_reason": "",
+  "accepted_hospital": null,
+  "accepted_hospital_name": "",
+  "assigned_driver": null,
+  "candidates": [
+    {
+      "id": 21,
+      "hospital": 1,
+      "hospital_name": "Hosp A",
+      "rank": 1,
+      "decision": "PENDING",
+      "distance_meters": 1576,
+      "responded_at": null
+    },
+    {
+      "id": 22,
+      "hospital": 2,
+      "hospital_name": "Hosp B",
+      "rank": 2,
+      "decision": "PENDING",
+      "distance_meters": 2900,
+      "responded_at": null
+    },
+    {
+      "id": 23,
+      "hospital": 3,
+      "hospital_name": "Hosp C",
+      "rank": 3,
+      "decision": "PENDING",
+      "distance_meters": 4200,
+      "responded_at": null
+    }
+  ],
+  "created_at": "2026-04-30T14:40:00Z",
+  "updated_at": "2026-04-30T14:40:00Z"
+}
+
+4.2 List My Emergency Requests
+- Method: GET
+- Path: /patient/requests/list/
+- Auth: PATIENT token required
+- Success Response (200):
+[
+  {
+    "...": "same EmergencyRequest object shape as above"
+  }
+]
+
+================================================================
+5) Shared Tracking API (Patient + Accepted Hospital)
+================================================================
+
+5.1 Get Tracking Snapshot
+- Method: GET
+- Path: /requests/<request_id>/tracking/
+- Auth: PATIENT owner token OR accepted HOSPITAL token
+- Success Response (200):
+{
+  "request_id": 10,
+  "driver_id": 1,
+  "driver_status": "UNAVAILABLE",
+  "driver_location": {
+    "latitude": 9.031,
+    "longitude": 38.741
+  },
+  "route": {
+    "start": {"latitude": 9.03, "longitude": 38.74},
+    "end": {"latitude": 9.021, "longitude": 38.751}
+  }
+}
+- Error responses:
+  - 404: {"detail": "Request not found."}
+  - 403: {"detail": "Forbidden."}
+  - 400: {"detail": "Driver not assigned yet."}
+
+================================================================
+6) Frontend Implementation Notes (Clear Prompt For Frontend AI)
+================================================================
+
+Use this section directly as a frontend prompt:
+
+"Build a frontend for an emergency ambulance system using these APIs.
+
+General:
+- Use token-based auth.
+- Save token and role after login.
+- Send Authorization: Token <token> on protected endpoints.
+- Base URL: http://127.0.0.1:8000/api
+
+Role Screens:
+1) Patient
+- Register/Login pages.
+- Emergency Request form with:
+  - emergency_type (optional)
+  - patient_latitude
+  - patient_longitude
+- Request history page from GET /patient/requests/list/
+- Tracking page:
+  - Poll GET /requests/{request_id}/tracking/ every 3-5 seconds.
+  - Show ambulance marker at driver_location.
+  - Show patient marker at route.end.
+  - Show route line from route.start to route.end.
+  - Use Google Maps JS SDK for map rendering.
+
+2) Hospital
+- Login page.
+- Drivers page:
+  - List drivers (GET /hospital/drivers/)
+  - Create driver (POST /hospital/drivers/)
+  - Update location (PATCH /hospital/drivers/{driver_id}/location/)
+- Incoming requests page:
+  - Poll GET /hospital/requests/incoming/ every 5 seconds.
+  - For each request:
+    - Reject button -> POST decision REJECT
+    - Accept section with driver dropdown of AVAILABLE drivers -> POST decision ACCEPT with driver_id
+- Tracking page (same endpoint as patient if hospital accepted that request).
+
+3) Admin
+- Login page.
+- Create hospital page -> POST /admin/hospitals/
+
+UX Rules:
+- Show role-based navigation after login.
+- Show API errors clearly (toast or inline).
+- Disable Accept button until a driver is selected.
+- After accepting/rejecting, refresh incoming requests list.
+
+State Management:
+- Keep auth state globally (token, role, user_id).
+- For polling pages, use cleanup on component unmount.
+- Handle 401 by redirecting to login.
+
+Map Behavior:
+- Start tracking only when backend returns 200 from tracking endpoint.
+- If tracking endpoint returns 400 'Driver not assigned yet', show waiting status.
+- Re-render marker position as driver_location updates."
+
+================================================================
+7) Quick End-to-End Test Sequence
+================================================================
+
+1. Login admin -> get admin token.
+2. Create hospital(s) with admin token.
+3. Login hospital -> get hospital token.
+4. Create driver(s) for hospital.
+5. Register/login patient -> get patient token.
+6. Patient creates request.
+7. Hospital checks incoming requests.
+8. Hospital accepts with available driver_id.
+9. Patient polls tracking endpoint for live location snapshots.
+

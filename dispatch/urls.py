@@ -1,0 +1,43 @@
+from django.urls import path
+
+from .views import (
+    AdminHospitalDetailView,
+    CreateHospitalView,
+    DriverListCreateView,
+    DriverLocationUpdateView,
+    DriverSelfLocationUpdateView,
+    EmergencyRequestCreateView,
+    EmergencyTrackingView,
+    HospitalDecisionView,
+    HospitalIncomingRequestListView,
+    HospitalPortalProfileUpdateView,
+    HospitalPortalProfileView,
+    LoginView,
+    PatientEmergencyRequestListView,
+    PatientHospitalListView,
+    PatientRegisterView,
+    PatientRequestLocationUpdateView,
+    ProfileUpdateView,
+    ProfileView,
+)
+
+urlpatterns = [
+    path("auth/patient/register/", PatientRegisterView.as_view()),
+    path("auth/login/", LoginView.as_view()),
+    path("auth/profile/", ProfileView.as_view()),
+    path("auth/profile/update/", ProfileUpdateView.as_view()),
+    path("admin/hospitals/", CreateHospitalView.as_view()),
+    path("admin/hospitals/<int:hospital_id>/", AdminHospitalDetailView.as_view()),
+    path("hospital/drivers/", DriverListCreateView.as_view()),
+    path("hospital/drivers/<int:driver_id>/location/", DriverLocationUpdateView.as_view()),
+    path("driver/location/", DriverSelfLocationUpdateView.as_view()),
+    path("patient/hospitals/nearby/", PatientHospitalListView.as_view()),
+    path("patient/requests/", EmergencyRequestCreateView.as_view()),
+    path("patient/requests/list/", PatientEmergencyRequestListView.as_view()),
+    path("patient/requests/<int:request_id>/location/", PatientRequestLocationUpdateView.as_view()),
+    path("hospital/profile/", HospitalPortalProfileView.as_view()),
+    path("hospital/profile/update/", HospitalPortalProfileUpdateView.as_view()),
+    path("hospital/requests/incoming/", HospitalIncomingRequestListView.as_view()),
+    path("hospital/requests/<int:request_id>/decision/", HospitalDecisionView.as_view()),
+    path("requests/<int:request_id>/tracking/", EmergencyTrackingView.as_view()),
+]

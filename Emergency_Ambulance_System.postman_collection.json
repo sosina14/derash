@@ -1,0 +1,408 @@
+{
+  "info": {
+    "_postman_id": "2d2bb4c1-bf27-4f85-82b9-c45ee54bcb09",
+    "name": "Emergency Ambulance System API",
+    "description": "Postman collection for the Django REST backend emergency ambulance dispatch flow.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000/api"
+    },
+    {
+      "key": "patient_token",
+      "value": ""
+    },
+    {
+      "key": "hospital_token",
+      "value": ""
+    },
+    {
+      "key": "admin_token",
+      "value": ""
+    },
+    {
+      "key": "driver_id",
+      "value": "1"
+    },
+    {
+      "key": "request_id",
+      "value": "1"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth - Register Patient",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"patient1\",\n  \"password\": \"patient123\",\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"email\": \"patient1@example.com\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/patient/register/",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "auth",
+            "patient",
+            "register",
+            ""
+          ]
+        }
+      }
+    },
+    {
+      "name": "Auth - Login (Patient/Hospital/Admin)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  const data = pm.response.json();",
+              "  if (data.role === 'PATIENT') pm.collectionVariables.set('patient_token', data.token);",
+              "  if (data.role === 'HOSPITAL') pm.collectionVariables.set('hospital_token', data.token);",
+              "  if (data.role === 'ADMIN') pm.collectionVariables.set('admin_token', data.token);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/login/",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "auth",
+            "login",
+            ""
+          ]
+        }
+      }
+    },
+    {
+      "name": "Admin - Create Hospital",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Token {{admin_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"hospital1\",\n  \"password\": \"hospital123\",\n  \"name\": \"City Hospital\",\n  \"latitude\": 9.03,\n  \"longitude\": 38.74,\n  \"email\": \"hospital1@example.com\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/admin/hospitals/",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "admin",
+            "hospitals",
+            ""
+          ]
+        }
+      }
+    },
+    {
+      "name": "Hospital - Create Driver",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Token {{hospital_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Driver One\",\n  \"phone\": \"+251900000001\",\n  \"status\": \"AVAILABLE\",\n  \"current_latitude\": 9.03,\n  \"current_longitude\": 38.74\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/hospital/drivers/",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hospital",
+            "drivers",
+            ""
+          ]
+        }
+      }
+    },
+    {
+      "name": "Hospital - List Drivers",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Token {{hospital_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hospital/drivers/",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hospital",
+            "drivers",
+            ""
+          ]
+        }
+      }
+    },
+    {
+      "name": "Patient - Create Emergency Request",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 201) {",
+              "  const data = pm.response.json();",
+              "  pm.collectionVariables.set('request_id', data.id);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Token {{patient_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"emergency_type\": \"ACCIDENT\",\n  \"patient_latitude\": 9.02,\n  \"patient_longitude\": 38.75\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/patient/requests/",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "patient",
+            "requests",
+            ""
+          ]
+        }
+      }
+    },
+    {
+      "name": "Patient - List My Requests",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Token {{patient_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/patient/requests/list/",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "patient",
+            "requests",
+            "list",
+            ""
+          ]
+        }
+      }
+    },
+    {
+      "name": "Hospital - Incoming Requests",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Token {{hospital_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hospital/requests/incoming/",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hospital",
+            "requests",
+            "incoming",
+            ""
+          ]
+        }
+      }
+    },
+    {
+      "name": "Hospital - Decision ACCEPT",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Token {{hospital_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"decision\": \"ACCEPT\",\n  \"driver_id\": {{driver_id}}\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/hospital/requests/{{request_id}}/decision/",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hospital",
+            "requests",
+            "{{request_id}}",
+            "decision",
+            ""
+          ]
+        }
+      }
+    },
+    {
+      "name": "Hospital - Decision REJECT",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Token {{hospital_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"decision\": \"REJECT\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/hospital/requests/{{request_id}}/decision/",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hospital",
+            "requests",
+            "{{request_id}}",
+            "decision",
+            ""
+          ]
+        }
+      }
+    },
+    {
+      "name": "Hospital - Update Driver Location",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Token {{hospital_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"current_latitude\": 9.021,\n  \"current_longitude\": 38.751\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/hospital/drivers/{{driver_id}}/location/",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hospital",
+            "drivers",
+            "{{driver_id}}",
+            "location",
+            ""
+          ]
+        }
+      }
+    },
+    {
+      "name": "Tracking - Patient/Hospital",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Token {{patient_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/requests/{{request_id}}/tracking/",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "requests",
+            "{{request_id}}",
+            "tracking",
+            ""
+          ]
+        }
+      }
+    }
+  ]
+}
